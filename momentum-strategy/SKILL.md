@@ -272,6 +272,28 @@ if mask.sum() < 15:
     continue
 ```
 
+### 日线 slice 长度决定因子是否全 NaN（已验证坑）
+
+```python
+# ❌ 错误 — iloc[-120:] 只有120行，roc120 需要121行才能产生第一个有效值
+C = closes.loc[:cutoff].iloc[-120:]
+roc120 = roc(C, 120).iloc[-1].dropna()  # → 全 NaN（120行，pct_change(120) 需要121行）
+top5    = score.sort_values(...).head(5) # → 空列表
+
+# ✅ 正确 — 用足够长的 slice 满足 lookback 需求
+C = closes.loc[:cutoff].iloc[-252:]      # ~1年日线数据
+roc120 = roc(C, 120).iloc[-1].dropna()   # → 120天lookback，需要至少121行数据
+# 等价原则：对任何 n 期 return 因子，至少需要 n+1 行原始价格
+```
+
+**症状**：所有月末 rebal 的 top5 都是空的，portfolio 为空，metrics 全零。
+
+**经验法则**：
+- roc20  → 需要 ≥21 行日线
+- roc60  → 需要 ≥61 行日线
+- roc120 → 需要 ≥121 行日线
+- **实用做法**：统一用 `iloc[-252:]`（约1年），兼顾所有常见 return 窗口
+
 ## Price Factor 扩展实验（2026-05-06 新增）
 
 ### 方法论：滚动月度 IC 稳定性
