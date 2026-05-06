@@ -419,6 +419,54 @@ def main():
 - **HMM Regime Detection**: [Abdullah-BA/RegimeSwitchingMomentumStrategy](https://github.com/Abdullah-BA/RegimeSwitchingMomentumStrategy)
 - **Risk Parity + Black-Litterman**: [anemer-astro/portfolio-optimization](https://github.com/anemer-astro/portfolio-optimization)
 
+## 交易频率对比（2026-05-06 新增）
+
+### 实验设置
+
+- **策略**：`roc120 + vol20` rank-zscore → top5，等权
+- **信号**：周 `j` 末收盘算因子 → 次周 `(j+1)` 初开盘价执行
+- **持仓**：一周（周一开盘 → 周五收盘）
+- **回测期**：2023-02-01 → 2026-01-30（约3年，116只股票）
+- **基准**：固定 5 只持仓，等权，周频再平衡
+
+### 结果
+
+| 频率 | 再平衡次数 | 年化收益 | Sharpe | MaxDD | 胜率 | 单次换手 |
+|------|-----------|---------|--------|-------|------|----------|
+| **Daily** | 631 | +12.9% | 0.70 | -31.0% | 51.7% | 15% |
+| **Weekly** | 128 | +12.8% | **1.63** | **-10.0%** | **60.9%** | 32% |
+| **Monthly** | 21 | -2.0% | -0.45 | -10.0% | 42.9% | 56% |
+
+> Monthly Sharpe 为负且 N=21（±0.58 置信区间），统计上与零无显著差异。
+
+### 交易成本敏感性
+
+Annual TC = `2 × tc_one_way × avg_turnover × n_rebal_per_year`
+
+| 频率 | 0bps | 10bps | 20bps | 50bps | 100bps |
+|------|------|-------|-------|-------|--------|
+| Daily | 0.70 | 0.28 | -0.13 | -1.37 | -3.43 |
+| **Weekly** | **1.63** | **1.20** | **0.77** | **-0.51** | -2.64 |
+| Monthly | -0.45 | -0.76 | -1.07 | -1.98 | -3.51 |
+
+> 假设：平均单次换手 Daily=15%, Weekly=32%, Monthly=56%（来自实际仓位重叠度计算）
+
+### 关键洞察
+
+1. **Daily 失败**：年换手 3826%，10bps 成本即抹平全部 alpha
+2. **Weekly 是甜点**：年换手 1674%，20bps 成本下 Sharpe = 0.77（仍有真实正 alpha）
+3. **Monthly 高换手悖论**：频率越低，单次 signal 变化越大（56% > 32%），成本反而更高
+4. **Monthly 统计不可靠**：N=21，95% CI ≈ ±0.58，Sharpe -0.45 与零无法区分
+
+### 操作节奏（当前 Cron 配置）
+
+```
+Signal：上周五收盘 → 算 roc120+vol20 → 预设 top5 清单
+执行：下周一开盘 → 市价单买入
+持仓：本周全程不动
+下次：下下周周五出新 signal
+```
+
 ## 文件结构
 
 ```
