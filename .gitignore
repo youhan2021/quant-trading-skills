@@ -1,31 +1,17 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.eggs/
-
-# Data files
+# Data files (live data, not code)
 data/
 output/
+__pycache__/
+*.pyc
+*.pyo
+*.pkl
 *.csv
-*.parquet
-
-# Virtual environments
-venv/
-env/
-.venv/
-
-# IDE
-.vscode/
-.idea/
+*.json
 
 # OS
 .DS_Store
-Thumbs.db
+*.swp
 
-# Logs
-*.log
-
-# Keys/tokens
-*.env
-*.key
+# IDE
+.idea/
+.vscode/
