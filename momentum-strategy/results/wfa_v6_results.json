@@ -1,0 +1,255 @@
+[
+  {
+    "window": "2014",
+    "factors": [
+      "roc120"
+    ],
+    "top_n": 5,
+    "direction": 1,
+    "train_ic": 0.0801,
+    "train_frac": 0.691,
+    "valid_pool_size": 107,
+    "sharpe": 1.05,
+    "ann": 18.6,
+    "max_dd": -13.8,
+    "spy_sharpe": 1.36,
+    "outperformance": -0.31,
+    "stocks": [
+      "AAPL",
+      "ABT",
+      "ADBE",
+      "AMAT",
+      "AMD"
+    ]
+  },
+  {
+    "window": "2015",
+    "factors": [
+      "roc120"
+    ],
+    "top_n": 5,
+    "direction": 1,
+    "train_ic": 0.0439,
+    "train_frac": 0.508,
+    "valid_pool_size": 110,
+    "sharpe": 0.1,
+    "ann": 1.8,
+    "max_dd": -15.6,
+    "spy_sharpe": 0.08,
+    "outperformance": 0.02,
+    "stocks": [
+      "AAPL",
+      "ABT",
+      "ADBE",
+      "AMAT",
+      "AMGN"
+    ]
+  },
+  {
+    "window": "2016",
+    "factors": [
+      "roc120"
+    ],
+    "top_n": 5,
+    "direction": 1,
+    "train_ic": 0.0556,
+    "train_frac": 0.576,
+    "valid_pool_size": 112,
+    "sharpe": 1.58,
+    "ann": 27.9,
+    "max_dd": -9.0,
+    "spy_sharpe": 0.85,
+    "outperformance": 0.73,
+    "stocks": [
+      "AAPL",
+      "ABBV",
+      "ABT",
+      "ADBE",
+      "AMAT"
+    ]
+  },
+  {
+    "window": "2017",
+    "factors": [
+      "roc120"
+    ],
+    "top_n": 5,
+    "direction": 1,
+    "train_ic": 0.0812,
+    "train_frac": 0.661,
+    "valid_pool_size": 112,
+    "sharpe": 4.55,
+    "ann": 55.1,
+    "max_dd": -4.3,
+    "spy_sharpe": 3.64,
+    "outperformance": 0.9,
+    "stocks": [
+      "AAPL",
+      "ABBV",
+      "ABT",
+      "ADBE",
+      "AMAT"
+    ]
+  },
+  {
+    "window": "2018",
+    "factors": [
+      "roc120"
+    ],
+    "top_n": 5,
+    "direction": 1,
+    "train_ic": 0.0815,
+    "train_frac": 0.661,
+    "valid_pool_size": 112,
+    "sharpe": -0.03,
+    "ann": -0.6,
+    "max_dd": -20.4,
+    "spy_sharpe": -0.44,
+    "outperformance": 0.41,
+    "stocks": [
+      "AAPL",
+      "ABBV",
+      "ABT",
+      "ADBE",
+      "AMAT"
+    ]
+  },
+  {
+    "window": "2019",
+    "factors": [
+      "roc120"
+    ],
+    "top_n": 5,
+    "direction": 1,
+    "train_ic": 0.0888,
+    "train_frac": 0.729,
+    "valid_pool_size": 113,
+    "sharpe": 3.32,
+    "ann": 49.7,
+    "max_dd": -8.1,
+    "spy_sharpe": 2.72,
+    "outperformance": 0.6,
+    "stocks": [
+      "AAPL",
+      "ABBV",
+      "ABT",
+      "ADBE",
+      "AMAT"
+    ]
+  },
+  {
+    "window": "2020",
+    "factors": [
+      "roc120"
+    ],
+    "top_n": 5,
+    "direction": 1,
+    "train_ic": 0.1367,
+    "train_frac": 0.915,
+    "valid_pool_size": 113,
+    "sharpe": 1.61,
+    "ann": 54.7,
+    "max_dd": -29.4,
+    "spy_sharpe": 0.65,
+    "outperformance": 0.96,
+    "stocks": [
+      "AAPL",
+      "ABBV",
+      "ABT",
+      "ADBE",
+      "AMAT"
+    ]
+  },
+  {
+    "window": "2021",
+    "factors": [
+      "roc120"
+    ],
+    "top_n": 5,
+    "direction": 1,
+    "train_ic": 0.2044,
+    "train_frac": 1.0,
+    "valid_pool_size": 114,
+    "sharpe": 2.41,
+    "ann": 38.5,
+    "max_dd": -7.4,
+    "spy_sharpe": 2.21,
+    "outperformance": 0.19,
+    "stocks": [
+      "AAPL",
+      "ABBV",
+      "ABT",
+      "ADBE",
+      "AMAT"
+    ]
+  },
+  {
+    "window": "2022",
+    "factors": [
+      "roc120"
+    ],
+    "top_n": 5,
+    "direction": 1,
+    "train_ic": 0.2412,
+    "train_frac": 1.0,
+    "valid_pool_size": 115,
+    "sharpe": -0.51,
+    "ann": -15.0,
+    "max_dd": -29.6,
+    "spy_sharpe": -0.75,
+    "outperformance": 0.24,
+    "stocks": [
+      "AAPL",
+      "ABBV",
+      "ABT",
+      "ADBE",
+      "AMAT"
+    ]
+  },
+  {
+    "window": "2023",
+    "factors": [
+      "roc120"
+    ],
+    "top_n": 5,
+    "direction": 1,
+    "train_ic": 0.2376,
+    "train_frac": 1.0,
+    "valid_pool_size": 115,
+    "sharpe": 2.11,
+    "ann": 35.9,
+    "max_dd": -11.2,
+    "spy_sharpe": 1.9,
+    "outperformance": 0.21,
+    "stocks": [
+      "AAPL",
+      "ABBV",
+      "ABT",
+      "ADBE",
+      "AMAT"
+    ]
+  },
+  {
+    "window": "2024",
+    "factors": [
+      "roc120"
+    ],
+    "top_n": 5,
+    "direction": 1,
+    "train_ic": 0.2491,
+    "train_frac": 0.966,
+    "valid_pool_size": 117,
+    "sharpe": 0.52,
+    "ann": 6.9,
+    "max_dd": -9.6,
+    "spy_sharpe": 2.33,
+    "outperformance": -1.81,
+    "stocks": [
+      "AAPL",
+      "ABBV",
+      "ABNB",
+      "ABT",
+      "ADBE"
+    ]
+  }
+]
