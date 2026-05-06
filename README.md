@@ -15,47 +15,68 @@
 | `risk-manager` | 风险管理（VaR、CVaR、止损止盈） |
 | `strategy-generator` | 交易信号生成（双均线、RSI、MACD、布林带、动量、均值回归） |
 
-## 核心研究成果（2026-05-06）
+## 核心研究成果（2026-05-06 更新）
 
-### 最佳策略：vol20 + ROE 多因子
-```
-Strategy              Sharpe  Ann%   MaxDD%
-───────────────────────────────────────────
-Multi-vol20+roe top5  1.42   +48.2%  -18.4%  ← 最佳
-Multi-vol20+earnings  1.37  +47.0%  -18.4%
-Baseline vol20 top10   1.31  +35.0%  -17.6%
-SPY B&H               0.97  +14.6%  -23.9%
-```
+### ⚠️ 重大 Bug 修复：look-ahead return matrix
+
+**之前所有 Sharpe 数字均有 info leak** — 因子在月末 `j` 计算（用价格到 `j`），但收益错误地用了同一月的收益（`j` 当月）。正确做法：因子在 `j` → 收益从 `j+1`（次月）。
+
+结果修正示例：
+| 策略 | 修复前（info leak） | 修复后（正确） |
+|------|------------------|--------------|
+| roc20 top5 Sharpe | **7.79** | **1.16** |
+| roc20 top5 Ann | 171.5% | 26.7% |
+| MaxDD | 0% | **-25.6%** |
+| 月胜率 | 100% | 59% |
+
+> 📌 **"11只优先股" Sharpe 7.79 是用未来收益打分造成的幻觉**。真实 Sharpe 约 1.16，和其他客观选股策略差不多。
+
+### 最佳策略（修复后，真实无 info leak）
+
+| 策略 | Test Sharpe | Ann | MaxDD | MC-p5 |
+|------|------------|-----|-------|-------|
+| roc120+vol20 top5 | **1.28** | 34.6% | -37.6% | 0.48 |
+| roc120 top5 | **1.16** | 26.7% | -25.6% | 0.45 |
+| book_per_share top10 | **1.10** | 18.8% | -15.4% | 0.48 |
+| roc120+book_per_share top20 | **1.12** | 18.2% | -26.6% | 0.38 |
+| SPY B&H | ~0.69 | ~16.7% | ~-26% | — |
+
+> MC-p5 = Monte Carlo 500次 bootstrap 5%分位数。大部分策略 < 0.5，置信区间下界接近零。
 
 ### 三段时间分离
-- **Train**: 2011-01 至 2016-01（策略发现）
-- **Val**: 2016-01 至 2021-01（股票筛选 & 因子方向）
-- **Test**: 2021-01 至 2026-01（最终评估）
+- **Train**: 2011-01 至 2016-01（因子 IC 方向）
+- **Val**: 2016-01 至 2021-01（策略筛选）
+- **Test**: 2021-01 至 2026-01（最终评估，只跑一次）
 
-### 数据架构
-```
-~/.hermes/fundamental_data/       ← 本地数据目录
-  sec_xbrl/                       ← SEC XBRL 历史（107 只，最早 2005）
-  yfinance/                       ← yfinance 实时更新
-  merged/                         ← 合并后数据
-```
+### 因子 IC（Train 期，预测能力）
 
-### 因子 IC 稳定性（Val 期）
-```
-因子       Val Mean IC  IC>0%   Stability
-─────────────────────────────────────────
-roc120     +0.151      66.7%    0.600  ✓
-vol60       +0.108      66.1%    0.455  ✓
-vol20       +0.105      62.7%    0.389  ✓
-roe        -0.043       42.4%   -0.241  ✗ 反转
-earnings   -0.040       42.4%   -0.232  ✗ 反转
-```
+| 因子 | IC | IC>0% | 方向 | 备注 |
+|------|-----|-------|------|------|
+| roc60 | +0.029 | 57% | LONG | price 因子中最稳定 |
+| roc120 | +0.009 | 55% | LONG | |
+| roe | +0.039 | 60% | LONG | 基本面最强，但极弱 |
+| earnings_yield | +0.021 | 57% | LONG | |
+| book_per_share | -0.016 | 48% | SHORT | |
+| de_ratio | -0.022 | 43% | SHORT | |
+
+> 基本面因子 IC 极弱（0.02-0.04），top5 组合主要靠 price momentum。
+
+### 综合实验：75 个策略对比（2026-05-06）
+
+75 策略覆盖：单因子（price/fund）× top5/10/20 × 多因子组合（equal rank / IC-weighted / price×price / price×fund / triple）
+
+**关键结论**：
+1. **无"圣杯"策略** — 最高 Test Sharpe = 1.28，且 MC-p5 只有 0.48
+2. **基本面因子作用有限** — roe/earnings_yield IC 弱（<4%），组合后提升不显著
+3. **Momentum IC 方向在 Train→Val→Test 不稳定** — IC stability 接近 0，甚至为负
+4. **WFA 大部分 Pass** — 但 MC-p5 普遍偏低，说明稳健性置信度有限
 
 ### 已解决的关键问题
 - ~~13 只优选股 selection bias~~ → 103 只候选池，Sharpe 2.17 → 0.94（真实上限）
 - ~~Val Sharpe>0 筛选~~ → 无效，corr=-0.173
 - ~~yfinance .info look-ahead~~ → 用 SEC XBRL 历史数据代替
 - ~~MaxDD bug~~ → numpy array 判断歧义，已修复
+- ~~look-ahead return matrix~~ → score at j → return from j to j+1（次月），已修复
 - ~~UNIVERSE 局部变量遮蔽~~ → 用独立局部变量 `available`
 
 ## Setup

@@ -17,15 +17,50 @@ readiness_status: available
 
 动量策略量化交易系统 — 严格三段式回测，无信息泄漏。
 
-## 核心方法论（2026-05-06 重大更新）
+## 核心研究成果（2026-05-06 重大更新）
+
+### ⚠️ 重大 Bug：Look-Ahead Return Matrix（所有历史 Sharpe 均需修正）
+
+**之前所有回测结果均有 info leak**：
+- 因子在月末 `j` 计算（用价格到 `j`）
+- 收益错误地用了同一月的 `j` 当月收益
+- 正确做法：**因子在 `j` → 收益从 `j` 到 `j+1`（次月）**
+
+**修正前后对比**：
+| 指标 | 修复前（info leak） | 修复后（正确） |
+|------|------------------|--------------|
+| roc20 top5 Sharpe | 7.79 | **1.16** |
+| roc20 top5 Ann | 171.5% | **26.7%** |
+| MaxDD | 0% | **-25.6%** |
+| 月胜率 | 100% | 59% |
+
+> 📌 **"11只优先股" Sharpe 7.79 是用未来收益打分造成的幻觉**。真实 Sharpe 约 1.16，和其他客观选股策略差不多。
 
 ### 三段数据分离（防 Info Leak）
 
 | 阶段 | 数据 | 用途 |
 |---|---|---|
-| Train | 2011-2016 | 策略选择：每个股票从4种策略中选Sharpe最高的 |
-| Val | 2016-2021 | 股票筛选：排除验证期Sharpe≤0的股票 |
-| Test | 2021-2026 | 真实回测：汇报最终性能指标 |
+| Train | 2011-2016 | 因子 IC 方向（9个因子 × 3种组合） |
+| Val | 2016-2021 | 75个策略组合筛选 |
+| Test | 2021-2026 | 最终评估，**只跑一次** |
+
+### 综合实验结果（75 策略，修复后）
+
+**Test Sharpe 排名**：
+| 策略 | Test Sharpe | Ann | MaxDD | MC-p5 |
+|------|------------|-----|-------|-------|
+| Price-roc120+vol20 top5 | **1.28** | 34.6% | -37.6% | 0.48 |
+| Multi-roc120+book_per_share top20 | **1.12** | 18.2% | -26.6% | 0.38 |
+| Single-roc120 top5 | **1.16** | 26.7% | -25.6% | 0.45 |
+| Single-book_per_share top10 | **1.10** | 18.8% | -15.4% | 0.48 |
+| Single-roe top10 | 0.98 | 16.9% | -27.9% | 0.36 |
+| SPY B&H | ~0.69 | ~16.7% | ~-26% | — |
+
+**关键结论**：
+1. **无"圣杯"策略** — 最高 Test Sharpe = 1.28
+2. **基本面因子作用有限** — roe IC=+0.039（60% IC>0%），极弱
+3. **MC-p5 普遍 < 0.5** — 95%置信区间下界接近零，稳健性存疑
+4. **WFA 大部分 Pass** — 但不代表策略稳定，只是 OOS 未出现极端反转
 
 ### 新增防护层（来自 GitHub 研究）
 
@@ -300,52 +335,37 @@ Test  : 2021-01-31 → 2026-01-31   (~60个月)
 /tmp/test_rolling_ic_v3.py  — 38 个 unit tests，全部通过
 ```
 
-## Fundamental Factor Extension（2026-05-06 新增）
+### 综合实验结果（修复后，2026-05-06）
 
-### 方法论：季度 XBRL + 月度 IC
+> ⚠️ **所有历史 Sharpe 数字均已修正**（修复 look-ahead return matrix bug）。以下为正确数字。
 
-SEC XBRL 季度数据构建基本面因子：
+**Test Sharpe 排名（75 策略，Val→Test 严格分离）**：
 
-```python
-# earnings_yield = 4Q NetIncome / MarketCap（季度滚动）
-# roe = 4Q NetIncome / 季度 StockholdersEquity
-# effective_date = filed_date + 60 days（look-ahead 防护）
-```
+| 策略 | Test Sharpe | Ann | MaxDD | MC-p5 |
+|------|------------|-----|-------|-------|
+| Price-roc120+vol20 top5 | **1.28** | 34.6% | -37.6% | 0.48 |
+| Multi-roc120+book_per_share top20 | **1.12** | 18.2% | -26.6% | 0.38 |
+| Single-roc120 top5 | **1.16** | 26.7% | -25.6% | 0.45 |
+| Single-book_per_share top10 | **1.10** | 18.8% | -15.4% | 0.48 |
+| Single-roe top10 | 0.98 | 16.9% | -27.9% | 0.36 |
+| Single-roc60 top10 | 0.97 | 18.3% | -22.4% | 0.23 |
+| SPY B&H | ~0.69 | ~16.7% | ~-26% | — |
 
-- 数据源：`https://data.sec.gov/api/xbrl/companyfacts/CIK{ZP}.json`
-- CIK lookup：`https://www.sec.gov/files/company_tickers.json`
-- 季度 NetIncomeLoss 从 2006-Q1 起可计算 → 2011-01 起有效因子
-- Revenues 极度稀疏（年度），rev_growth 因子**不可用**
+> MC-p5 = Monte Carlo 500次 bootstrap 5%分位数。大部分 < 0.5，95%置信区间下界接近零。
 
-### Val IC 稳定性（基本面因子）
+**关键结论**：
+1. **无"圣杯"策略** — 最高 Test Sharpe = 1.28
+2. **基本面因子作用有限** — roe IC=+0.039（60% IC>0%），极弱；book_per_share 是基本面中最稳定的（IC>0% 48%，方向 SHORT）
+3. **MC-p5 普遍偏低** — 稳健性置信度有限
+4. **WFA 大部分 Pass** — 但不代表策略稳定
 
-| 因子 | Val Mean IC | IC>0% | Stability | Direction | 结论 |
-|------|------------|-------|-----------|-----------|------|
-| roe | **-0.043** | 42.4% | **-0.241** | SHORT (-1) | **价值陷阱信号** |
-| earnings_yield | **-0.040** | 42.4% | **-0.232** | SHORT (-1) | **价值陷阱信号** |
-| book_per_share | -0.017 | 50.8% | -0.093 | NEUTRAL | 噪声太大 |
-| de_ratio | +0.027 | 49.2% | +0.157 | NEUTRAL | 方向不稳定 |
+### 三段时间分离
 
-### 关键发现：ROE/Earnings Yield = SHORT 信号
-
-> ⚠️ **反直觉结论**：高 ROE / 高盈利收益率的公司未来收益反而更低——这是典型的**价值陷阱**（Value Trap）。机构用 GAAP 盈利高估了周期性公司的真实盈利能力。
-
-- **不是"买好公司"因子**，而是"做空高 qtm/低 q 陷阱股"的反向因子
-- IC mean 在 Val 为负（-0.043），frac_pos=42.4%（不到一半月份 IC>0）
-- Stability 为负（-0.241）→ Val 和 Train 方向**不一致**，警示信号
-- roe/earnings_yield **不能独立作为 Long 信号**，只能配合 vol20 作为组合增强
-
-### Test 回测结果（2021-2026）
-
-| 策略 | Sharpe | Ann% | MaxDD% |
-|------|--------|------|--------|
-| **Multi-vol20+roe top5** | **1.42** | **+48.2%** | **-18.4%** |
-| Multi-vol20+earnings top5 | 1.37 | +47.0% | -18.4% |
-| Multi-vol20+roe top10 | 1.37 | +36.8% | -19.4% |
-| Baseline vol20 top10 | 1.31 | +35.0% | -17.6% |
-| SPY B&H | 0.97 | +14.6% | -23.9% |
-
-→ vol20 + roe(做空) 组合比纯 vol20 Sharpe 高 14%（1.42 vs 1.28），Ann +5pp，MaxDD 不变大
+| 阶段 | 数据 | 用途 |
+|---|---|---|
+| Train | 2011-2016 | 因子 IC 方向（9个因子 × 3种组合） |
+| Val | 2016-2021 | 75个策略组合筛选 |
+| Test | 2021-2026 | 最终评估，**只跑一次** |
 
 ### Python Scoping Bug（已验证坑）
 
