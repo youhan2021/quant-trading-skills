@@ -6,7 +6,6 @@ __pycache__/
 *.pyo
 *.pkl
 *.csv
-*.json
 
 # OS
 .DS_Store
@@ -15,3 +14,7 @@ __pycache__/
 # IDE
 .idea/
 .vscode/
+
+# Keep validation results
+# Need to negate AFTER the json rule
+# This is handled by specific rules below
