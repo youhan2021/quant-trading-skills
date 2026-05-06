@@ -3,13 +3,69 @@ name: quant-backtest-validation
 description: 量化回测 info leak 防护和动态组合再平衡的核心研究结论。采用严格三段式 train/val/test 验证流程。
 metadata:
   author: youhan
-  version: 0.2.0
+  version: 0.3.0
   tags: [quant, backtest, info-leak, validation, dynamic-rebalance, momentum]
 ---
 
-# Quant Backtest Validation v0.2
+# Quant Backtest Validation v0.3
+
+> ⚠️ v0.2 及之前版本的 Sharpe 数字已废弃 — yfinance MultiIndex 数据处理 bug 导致所有回测结果虚高（详见「已知 bug」章节）。
 
 量化策略回测的 info leak 防护和动态组合再平衡的核心研究结论。
+
+## 已知 Bug（v0.3 关键修复）
+
+### Bug 1: yfinance MultiIndex 列名陷阱 [CRITICAL]
+
+```python
+# ❌ 错误：auto_adjust=False 返回 MultiIndex (PriceType, Ticker)
+df = yf.download(tickers, start=start, end=end, auto_adjust=False)
+# df.columns: [('Close', 'AAPL'), ('Close', 'MSFT'), ('High', 'AAPL'), ...]
+# 每个 ticker 有 6 种价格类型（Close, Adj Close, High, Low, Open, Volume）
+
+# ❌ 错误：用 df['Close'] 后直接 flatten 是错的
+df.columns = df.columns.get_level_values(1)  # → 重复列名！df['AAPL'] 变成 DataFrame(6列)
+
+# ✅ 正确：先取 'Close' 层，得到单层 DataFrame
+df = yf.download(tickers, start=start, end=end, auto_adjust=False)
+if isinstance(df.columns, pd.MultiIndex):
+    df = df['Close']  # DataFrame, columns = ticker names only
+# df['AAPL'] 现在是 Series
+```
+
+### Bug 2: tz-aware / tz-naive 混合导致 DataFrame 构造失败
+
+```python
+# ❌ 有些股票 index 带时区，有些不带，pd.DataFrame(dict) 会报错
+# ValueError: Cannot join tz-naive with tz-aware DatetimeIndex
+
+# ✅ 统一在处理完 MultiIndex 后立即去掉时区
+df = df['Close']
+if df.index.tz is not None:
+    df = df.tz_localize(None)
+```
+
+### Bug 3: yfinance 返回 IPO 于回测期之后的股票的虚假历史数据
+
+部分 2011 年后 IPO 的股票（SMCI、ABBV 等），yfinance 会返回虚假的历史数据（1762+ 个数据点）。必须在回测前过滤：
+
+```python
+def filter_ipo_fakes(tickers_dict, ipo_cutoff='2011-01-01'):
+    """剔除 IPO 于 cutoff 之后的股票（yfinance 会返回假历史数据）"""
+    cutoff = pd.Timestamp(ipo_cutoff)
+    result = {}
+    for ticker, s in tickers_dict.items():
+        first_valid = s.dropna().index[0]
+        if first_valid <= cutoff:
+            result[ticker] = s
+    return result
+```
+
+### 实测数据（2026-05 验证）
+
+用 Wikipedia 2011 历史快照（497只）跑 grid search（12种参数组合）：**Val Sharpe 全部 = 0.00**
+
+这说明：纯动量策略在包含大量已倒闭公司的 historical universe 下**完全无效**。之前 v0.2 跑出的 Sharpe 7-9 是 yfinance bug 叠加 survivorship bias 的虚假结果。
 
 ## 三段式验证流程（必须遵守）
 
@@ -51,79 +107,59 @@ strategies = {
 }
 ```
 
-## 核心发现（v0.2 纠正版）
+## 核心发现（v0.3 — 待重新验证）
 
-### 1. 三段式后，Per-stock 策略 > 统一策略
+> ⚠️ 以下所有 Sharpe / 年化数字均来自 v0.2旧代码（yfinance MultiIndex bug），**已废弃**，仅作历史记录。
 
-| 对比项 | 统一 roc60 | per-stock 最优 |
-|--------|-----------|---------------|
-| 年化 | 147.4% | 159.8% |
-| Sharpe | 7.26 | 7.19 |
-| MaxDD | -25.6% | -33.2% |
-| 交易次数 | 229 | 345 |
+### 结论：纯动量策略在 historical universe（Wikipedia 2011快照，497只，含大量已倒闭公司）下 Val Sharpe = 0.00（12种参数全部为0）
 
-per-stock 策略年化更高，但 MaxDD 也更大。统一 roc60 的 MaxDD 更低是因为信号同步——熊市时同时离场，波动更小。
+所有高 Sharpe 的旧结论均来自：
+1. 当前 SPX 幸存者列表（不含倒闭公司 → survivorship bias）
+2. yfinance MultiIndex 处理错误 → 回报计算错误
+3. IPO 股票虚假历史数据（SMCI 等2011后IPO股有1762个假数据点）
 
-### 2. min_hold 越长越好（hold=52 全面胜出）
+## 正确的数据下载代码（v0.3 标准实现）
 
-无论 max_weight 设多少，hold=52（≈1年）始终是 Sharpe 最高的设置：
+```python
+import yfinance as yf
+import pandas as pd
+import numpy as np
 
-| max_w | hold=4 Sharpe | hold=26 Sharpe | hold=52 Sharpe |
-|--------|--------------|---------------|---------------|
-| 15% | 6.53 | 6.95 | **7.63** |
-| 20% | 7.12 | 7.66 | **8.42** |
-| 25% | 7.46 | 7.86 | **8.97** |
-| 30% | 7.36 | 7.40 | 8.31 |
+def yf_close(tickers, start, end):
+    """下载收盘价，返回 {ticker: Series} dict
 
-**解读**：动量策略需要时间跑出来，频繁换股（hold=4）反而打断动量。1年是最小足够长的持有期。
+    ⚠️ 必须用 auto_adjust=False，然后用 df['Close'] 取收盘价。
+    直接 flatten MultiIndex 会导致列名重复，df['AAPL'] 变成 DataFrame(6列)。
+    """
+    df = yf.download(tickers, start=start, end=end,
+                     auto_adjust=False, progress=False)
+    if df.empty:
+        return {}
+    # MultiIndex: ('Close', 'AAPL'), ('High', 'AAPL'), ... → 只取 Close 层
+    if isinstance(df.columns, pd.MultiIndex):
+        df = df['Close']  # DataFrame, columns = ticker names only
+    # 统一 tz-naive（有些股票 index 带时区，有些不带）
+    if df.index.tz is not None:
+        df = df.tz_localize(None)
+    result = {}
+    for col in df.columns:
+        s = df[col].dropna()
+        if len(s) > 100:
+            result[str(col)] = s
+    return result
 
-### 3. 仓位上限甜点：max_weight=25%
-
-| max_w | 效果 |
-|--------|------|
-| 15% | 太保守，错过 NVDA 动量，年化低 |
-| 20% | 改善明显 |
-| **25%** | **最优平衡：限制极端集中 + 保留动量** |
-| 30%+ | 失去约束力，NVDA 绑架组合 |
-
-### 4. 动态选股有效（纠正「动态不如静态」的错误结论）
-
-早期分析因为 info leak（用同一段数据选策略+回测）得出「动态不如静态」的错误结论。清除 leak 后：
-
-- Dynamic (per-stock, hold=52, max_w=25%): Sharpe 8.97
-- Static (val top5): Sharpe 11.48（但被 NVDA 绑架，MaxDD=-24.5%）
-
-**动态选股的优势**：当某只股票进入下跌 regime，能自动退出，而不是死拿。
-
-### 5. 被低估的标的（验证期 Sharpe>0 但未被重视）
-
-以下标的在验证期表现稳健，测试期也表现良好：
-- GLD: val Sharpe=5.53, test Sharpe=1.79（避险资产）
-- UUP: val Sharpe=0.84, test Sharpe=3.46（美元走强）
-- JPM: val Sharpe=7.09, test Sharpe=1.08
-
-## 最优参数组合（2026-05 实测）
-
-```
-策略:     per-stock 最优（训练期选出）
-仓位上限: max_weight = 25%
-最小持有: min_hold = 52 周（约1年）
-选股数量: top_n = 5
-再平衡:   权重偏离 >20% 时触发
-执行:     周五信号 → 周一开盘执行
+def filter_ipo_fakes(tickers_dict, ipo_cutoff='2011-01-01'):
+    """剔除 IPO 于 cutoff 之后的股票（yfinance 返回假历史数据）"""
+    cutoff = pd.Timestamp(ipo_cutoff)
+    result = {}
+    for ticker, s in tickers_dict.items():
+        first_valid = s.dropna().index[0]
+        if first_valid <= cutoff:
+            result[ticker] = s
+    return result
 ```
 
-**测试期绩效（2021-2026，无交易成本）**：
-- 年化: 197.7%
-- Sharpe: 8.97
-- MaxDD: -33.6%
-- 交易次数: 337
-
-**考虑交易成本后（≈1%/年）估算**：
-- Sharpe ≈ 7.2（0.8倍折扣）
-- 年化 ≈ 158%
-
-## 动态组合回测框架代码
+## 动态组合回测框架代码（v0.3 — 待修复 MultiIndex 后重新验证）
 
 ```python
 import numpy as np, pandas as pd, yfinance as yf
@@ -232,6 +268,10 @@ def bt_port(ticker_list, data, initial=100_000, top_n=5, min_hold=52,
 
 ## Info Leak 检查清单
 
+- [ ] **数据处理**：`auto_adjust=False` + `df['Close']`，不用 `auto_adjust=True`（数据范围受限）
+- [ ] **tz 处理**：统一去掉时区，避免 `Cannot join tz-naive with tz-aware` 错误
+- [ ] **IPO 过滤**：剔除回测期之后 IPO 的股票（yfinance 返回假数据）
+- [ ] **Survivorship Bias**：用历史快照，不用当前成分股列表
 - [ ] 策略选择：在 Train 数据上完成
 - [ ] 股票筛选：在 Val 数据上确认 Sharpe>0（不是 Test）
 - [ ] 参数调优：在 Val 数据上完成（不是 Test）
@@ -239,13 +279,14 @@ def bt_port(ticker_list, data, initial=100_000, top_n=5, min_hold=52,
 - [ ] 信号生成：所有 signal 用 `shift(1)` 避免当天数据泄露
 - [ ] ROC/MA 计算：只用历史数据，不用未来数据
 
-## 已知局限性
+## 已知局限性（v0.3）
 
-1. **Sharpe 膨胀**：周数据 Sharpe 比日数据高。只做组合内相对比较，不引用绝对值。
-2. **NVDA 影响**：任何含 NVDA 的组合都被其 2021-2026 涨幅（14x）主导
-3. **手续费未计入**：模拟 0 成本；实际交易估算打 8 折
-4. **单一市场环境**：2021-2026 是长牛市，trend-following 天然占优
-5. **外推风险**：训练期（2011-2016）和测试期（2021-2026）市场结构可能发生变化
+1. **v0.2 Sharpe 数字全部作废**：所有年化、Sharpe、MaxDD 结论均来自 yfinance MultiIndex bug 的错误计算。待用干净代码重新验证。
+2. **Survivorship Bias**：Wikipedia 历史快照（497只）比当前 SPX 好，但仍缺失已倒闭公司（需要 Kenneth French historical constituents 才能彻底解决）
+3. **yfinance 数据质量**：部分股票（已倒闭或 IPO 于回测期之后）数据缺失或错误
+4. **Sharpe 膨胀**：周数据 Sharpe 比日数据高。只做组合内相对比较，不引用绝对值。
+5. **单一市场环境**：2021-2026 是长牛市，trend-following 天然占优
+6. **外推风险**：训练期（2011-2016）和测试期（2021-2026）市场结构可能发生变化
 
 ## 依赖
 

@@ -15,121 +15,169 @@ readiness_status: available
 
 # quant-trading
 
-量化交易系统 — 固定动量策略 + 严格三段式回测，无信息泄漏。
+量化交易系统 — 多因子动量策略 + 严格滚动 Walk-Forward 验证，无信息泄漏。
 
-## 核心成果（2026-05-06 最终版）
+## ⚠️ 历史版本（有 Selection Bias，废弃）
 
-### 当前最优策略：固定 Weekly Momentum
+### 13股"优选"Universe（已废弃）
 
-**策略规则（无需优化，直接可用）：**
-- **Universe**: 13 只股票 — SPY, QQQ, GLD, TLT, EFA, AMZN, LMT, V, NVDA, WMT, GOOGL, UUP, JPM
-- **因子**: roc120 + vol20（rank-zscore 等权组合）
-- **持仓**: top5，等权
-- **频率**: 周频（每周最后一个交易日算因子 → 下周持仓）
-- **收益计算**: `(C[t+1] - C[t]) / C[t]`，因子在 t 用 t 日收盘（含全量历史）
-- **换手**: 平均每周 11.5%，年化约 6x
+**问题**：这13只股票是历史上存活 + 表现良好的样本，用它们回测等同于用后验知识选股。
 
-**回测结果（真实滚动模拟，无任何参数优化）：**
+### 75策略挑最优（已废弃）
 
-| 指标 | 无TC | 10bps | 20bps | 30bps |
-|------|------|-------|-------|-------|
-| Sharpe | **1.25** | 1.19 | 1.13 | 1.08 |
-| 年化收益 | 26.4% | 25.2% | 24.0% | 22.8% |
-| MaxDD | -44.0% | | | |
+从75个策略里挑Test Sharpe最高 → "Sharpe 1.28" → 本质是 **selection bias**：75个策略里总有一个运气好，1.28是偶然，不是能力。
 
-- **SPY B&H**: Sharpe 0.77，年化 12.5%
-- **最终净值**: 21.83x（vs SPY 5.44x）
-- **胜率**: 11/13 年正收益（2018 和 2022 亏损）
+### comprehensive_v2_results.json（已废弃）
 
-**年度明细（无TC）：**
+103只幸存者股票 + 75个策略 → 双重selection bias。所有数字不可信。
 
-| 年份 | 收益 | Sharpe | MaxDD | 周换手 |
-|------|------|--------|-------|--------|
-| 2013 | +43.0% | 2.98 | -6.4% | 13.0% |
-| 2014 | +2.1% | 0.14 | -11.0% | 6.4% |
-| 2015 | +40.6% | 2.11 | -6.7% | 8.2% |
-| 2016 | +33.7% | 1.65 | -8.6% | 12.8% |
-| 2017 | +42.8% | 3.35 | -3.7% | 5.7% |
-| 2018 | -6.6% | -0.26 | -29.7% | 8.3% |
-| 2019 | +31.8% | 2.17 | -10.0% | 16.7% |
-| 2020 | +37.8% | 1.20 | -28.7% | 12.0% |
-| 2021 | +36.0% | 1.89 | -6.9% | 7.1% |
-| 2022 | -36.2% | -1.15 | -38.8% | 11.5% |
-| 2023 | +41.2% | 2.73 | -7.8% | 21.0% |
-| 2024 | +47.7% | 2.62 | -10.2% | 20.0% |
-| 2025 | +29.2% | 1.20 | -24.3% | 8.3% |
+## 严格 Walk-Forward 验证方法（2026-05-06 确立）
 
-**交易成本估算：**
-- Annual TC = `2 × tc_one_way × avg_weekly_turnover × 52`
-- 周换手约 11.5%，20bps 单程下年 TC ≈ 2.4%，对收益影响约 9%
+### 核心原则
 
-### 结论：没有圣杯，没有 Regime Switch
+**每个滚动窗口完全独立，不共享任何"未来"信息：**
 
-| 对比项 | 固定策略 | RegimeSwitch | 结论 |
-|--------|---------|--------------|------|
-| WFA Sharpe（12年平均） | **1.50** | 1.44 | 固定胜 |
-| B 跑赢 A 的年份 | — | 4/12 | 固定胜 |
-| MaxDD 控制 | -44.0% | — | 固定胜 |
-| 复杂 度 | 低 | 高 | 固定胜 |
-
-Regime Switch 在 WFA 验证中不 work（固定胜 4/12 年），且 2022 年债券也跌（加息环境），防御仓位反而更差。
-
-## 三段式分离原则（防 Info Leak）
-
-| 阶段 | 数据 | 用途 |
-|------|------|------|
-| Train | 2011-2016 | 因子 IC 方向 |
-| Val | 2016-2021 | 策略筛选（已证伪：Val-Test 相关性 = -0.173） |
-| Test | 2021-2026 | 最终评估，只跑一次 |
-
-**重要发现：Val Sharpe>0 筛选对 Test 表现几乎无预测能力（corr = -0.173），该条件本质是过拟合源。**
-
-## 已证伪的策略
-
-1. **Regime Switch（股票/债券切换）**: WFA 12 年平均 Sharpe 1.44 < 固定 1.50，B 只赢 4/12 年
-2. **11 只"优选股"**: Sharpe 7.79 → Selection Bias + Info Leak，真实约 1.16
-3. **yfinance .info 基本面数据**: Look-ahead bias，最新季度数据含未来信息
-4. **Val Sharpe>0 筛选**: 预测能力几乎为零
-5. **Volatility Scaling**: 降低收益或增加 MaxDD，不推荐
-
-## 关键 Bug 记录
-
-### Look-Ahead Return Matrix（已修复）
 ```
-错误: 因子在 j 计算，收益也用 j 月收益（overlap 20天）
-修复: 因子在 j → 收益从 j 到 j+1（次月）
-影响: Sharpe 7.79 → 1.16
+Train 2009~2014 → Test 2014
+Train 2010~2015 → Test 2015
+Train 2011~2016 → Test 2016
+...
+Train 2019~2024 → Test 2024
 ```
 
-### numpy array truthiness（已修复）
+| 阶段 | 数据范围 | 用途 |
+|------|---------|------|
+| **Train** | 5年滑动窗口 | 计算因子IC → 确定因子方向和权重 |
+| **Test** | 1年 | 用Train期LOCKED的因子权重选股，**完全不调整** |
+
+### 5步走流程（每个窗口）
+
 ```
-错误: if not rets:  → numpy array 判断歧义
-修复: if len(rets) == 0:
+1. Train期月度IC分析 → 因子方向（n≥30 & frac>55%）
+2. 用IC均值作为权重
+3. 用Test期起点前120周数据算截面因子
+4. 综合得分 → 选top5
+5. Test期回测 → Sharpe vs SPY
 ```
+
+### 有效因子标准
+
+- **n ≥ 30**：数据点足够（60个月 ≈ 5年）
+- **frac > 55%**：IC为正的月份超过55%
+- 同时满足才作为有效因子，否则跳过该窗口
+
+### 判定策略是否有效
+
+- **胜率**：跑赢SPY的窗口占比
+- **平均超额**：Avg(策略Sharpe - SPY Sharpe)
+- **严格标准**：胜率>60% 且 平均超额>0.3 才算通过
+
+### 脚本位置
+
+```
+momentum-strategy/scripts/rolling_wfa_v2.py
+```
+
+### 运行方法
+
+```bash
+cd ~/.hermes/skills/quant-trading
+python momentum-strategy/scripts/rolling_wfa_v2.py
+```
+
+### 验证结果（2026-05-06）
+
+10个滚动窗口，严格时序分离：
+
+| 窗口 | Train期 | Test期 | 策略Sharpe | SPY | 超额 | 有效因子 |
+|------|---------|--------|-----------|-----|------|---------|
+| 2014 | 09~14 | 2014 | 0.43 | 1.36 | -0.93 | roc20(-) |
+| 2015 | 10~15 | 2015 | -0.95 | 0.08 | -1.03 | roc60(-), roc120(-) |
+| 2016 | 11~16 | 2016 | **2.87** | 0.85 | **+2.03** | roc120(-) |
+| 2017 | 12~17 | 2017 | 跳过 | — | — | 无有效因子 |
+| 2018 | 13~18 | 2018 | -1.00 | -0.44 | -0.57 | roc20(-), roc60(-), roc120(-) |
+| 2019 | 14~19 | 2019 | 0.88 | 2.72 | -1.83 | roc120(-) |
+| 2020 | 15~20 | 2020 | **3.57** | 0.65 | **+2.92** | roc20(+), roc60(+) |
+| 2021 | 16~21 | 2021 | 1.18 | 2.21 | -1.04 | roc20(+), roc60(+), roc120(+) |
+| 2022 | 17~22 | 2022 | -0.81 | -0.75 | -0.06 | roc20(+), roc60(+), roc120(+) |
+| 2023 | 18~23 | 2023 | -0.05 | 1.90 | -1.95 | roc20(+), roc60(+), roc120(+) |
+| 2024 | 19~24 | 2024 | **2.97** | 2.33 | **+0.65** | roc20(+), roc60(+), roc120(+), vol20(-) |
+
+**汇总**：
+- 平均Sharpe：0.91 vs SPY 1.09
+- 超额收益：-0.18
+- **胜率：30%（3/10）**
+- **结论：纯粹动量策略在严格WFA验证下跑不赢SPY**
+
+### 实盘推荐（Train 2020~2024）
+
+```
+选股: ['NVDA', 'AVGO', 'NFLX', 'META', 'GE']
+因子权重: roc20=16%, roc60=20%, roc120=23%, vol20=20%, vol60=20%
+```
+
+⚠️ 注意：这是基于历史WFA验证的结果，但WFA显示策略整体无效（胜率30%），实盘应谨慎。
+
+### 为什么以前能跑出Sharpe 1.28？
+
+**四重selection bias叠加**：
+1. 从75个策略里挑最优（最大bias）
+2. 103只股票全是当前幸存者（无倒闭股）
+3. Val期选参数，Test期验证（本质是同一回测）
+4. benchmark计算有bug（MultiIndex）
+
+### 已证伪的策略
+
+| 策略 | 问题 |
+|------|------|
+| 13股"优选"Universe | Selection bias — 用后验知识选股 |
+| 75策略挑最优 | Selection bias — 75个里总有一个运气好 |
+| Regime Switch | WFA验证：固定胜4/12年，不推荐 |
+| Volatility Scaling | 降低收益或增加MaxDD |
+| Val Sharpe>0筛选 | 预测能力几乎为零（corr=-0.173） |
+
+## yfinance 数据处理规范
+
+**MultiIndex陷阱**：`auto_adjust=False` 返回 `[(PriceType, Ticker)]` MultiIndex，必须用 `df['Close']` 取收盘价列再flatten。
+
+```python
+def yf_close(tickers, start, end):
+    df = yf.download(tickers, start=start, end=end, auto_adjust=False, progress=False)
+    if df.empty:
+        return {}
+    if isinstance(df.columns, pd.MultiIndex):
+        df = df['Close']  # 只取收盘价，columns变成ticker names
+    if df.index.tz is not None:
+        df = df.tz_localize(None)
+    result = {}
+    for col in df.columns:
+        s = df[col].dropna()
+        if len(s) > 100:
+            result[str(col)] = s
+    return result
+```
+
+**假历史数据**：对2011年之前IPO的股票，yfinance可能返回虚假历史。需用 `firstTradeDateEpochGregorian` 验证。
 
 ## 文件结构
 
 ```
 quant-trading/
-├── SKILL.md                    # 本文件
-├── README.md                    # repo 说明
-├── fixed_weekly_backtest.py     # 核心回测脚本（固定策略，真实滚动）
+├── SKILL.md                           # 本文件
 ├── momentum-strategy/
-│   └── SKILL.md                # 历史策略研究记录
-├── fundamental-data-collector/
 │   └── scripts/
-│       ├── rolling_retrain_weekly.py  # RegimeSwitch 实验脚本
-│       ├── sec_xbrl_fetch.py          # SEC XBRL 数据获取（备用）
-│       └── comprehensive_backtest.py   # 三段式综合实验
-├── quant-wfa/
-│   └── SKILL.md                # WFA 方法论
-└── data/                        # 本地数据（不 push）
+│       ├── rolling_wfa_v2.py         # ★ 严格滚动WFA标准脚本
+│       └── clean_backtest.py          # Wikipedia历史快照回测
+└── fundamental-data-collector/
+    └── data/
+        ├── ticker_cik_map.json         # 117只候选股票
+        └── comprehensive_v2_results.json  # 废弃（selection bias）
 ```
 
-## 操作节奏（cron 配置）
+## 操作节奏
 
 ```
-Signal：每周最后一个交易日收盘 → 算 roc120+vol20 → 预设 top5 清单
+Signal：每周最后一个交易日收盘 → 算因子得分 → 预设top5清单
 执行：下一个交易日开盘 → 市价单买入
 持仓：本周全程不动
 重复：每周末重复
@@ -140,5 +188,3 @@ Signal：每周最后一个交易日收盘 → 算 roc120+vol20 → 预设 top5 
 ## 参考来源
 
 - **Walk-Forward Analysis + Monte Carlo**: [zachisit/july-backtester](https://github.com/zachisit/july-backtester)
-- **Volatility Scaling**: `/tmp/volatility-scaled-momentum-mean-reversion-strategy`
-- **HMM Regime Detection**: [Abdullah-BA/RegimeSwitchingMomentumStrategy](https://github.com/Abdullah-BA/RegimeSwitchingMomentumStrategy)
