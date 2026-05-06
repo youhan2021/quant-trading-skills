@@ -131,13 +131,16 @@ output/
 获取：DataFrame/JSON 格式数据
 ```
 
-### 预留子模块
+### 子模块协作
+
+已实现的子模块（通过 skill 调度）：
 
 ```
-strategy-generator: 策略生成 (待开发)
-backtest-engine: 回测引擎 (待开发)
-risk-manager: 风险管理 (待开发)
-execution-agent: 执行代理 (待开发)
+market-info-collector: ✅ 可用（数据收集）
+strategy-generator:    ✅ 可用（信号生成）
+backtest-engine:        ✅ 可用（回测引擎）
+risk-manager:          ✅ 可用（风险管理）
+execution-agent:       🔜 待开发（执行代理）
 ```
 
 ## 使用示例

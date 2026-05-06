@@ -44,7 +44,6 @@ metadata:
 | `win_rate` | 胜率 | 盈利交易数/总交易数 |
 | `profit_factor` | 盈亏比 | 总盈利/总亏损 |
 | `sortino_ratio` | 索提诺比率 | (年化收益-目标收益)/下行波动率 |
-| ` calmar_ratio` | 卡玛比率 | 年化收益/最大回撤 |
 
 ### 交易统计
 
