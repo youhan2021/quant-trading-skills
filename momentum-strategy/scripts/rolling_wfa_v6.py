@@ -154,13 +154,17 @@ ROLL_WINDOWS = [
     ('2017-01-01', '2022-01-01', '2022-01-01', '2023-01-01', '2022'),
     ('2018-01-01', '2023-01-01', '2023-01-01', '2024-01-01', '2023'),
     ('2019-01-01', '2024-01-01', '2024-01-01', '2025-01-01', '2024'),
+    ('2020-01-01', '2025-01-01', '2025-01-01', '2026-01-01', '2025'),
 ]
 
 # ------------------------------------------------------------------
 # 7. 核心函数
 # ------------------------------------------------------------------
-def get_valid_tickers(tw_start, min_weeks=120):
-    """获取在Test期起点时已有足够历史的股票"""
+def get_valid_tickers(tw_start, min_weeks=130):
+    """获取在Test期起点时已有足够历史的股票
+    min_weeks=130: 约2.5年，确保有足够价格历史计算120日动量因子
+    额外：用IPO日期直接过滤，避免ABNB等近期IPO在2024/2025混进来
+    """
     from datetime import datetime
     tw_ts = pd.Timestamp(tw_start)
     valid = []
@@ -172,6 +176,10 @@ def get_valid_tickers(tw_start, min_weeks=120):
         price_start = prices[t].dropna().index[0]
         # 最保守：要求IPO日期在tw_start之前至少min_weeks周
         if (tw_ts - pd.Timestamp(price_start)).days >= min_weeks * 7:
+            # 额外：直接用IPO日期过滤，ABNB 2020-12之后IPO的不允许进入2024+窗口
+            ipo_ts = pd.Timestamp(ipo)
+            if ipo_ts.year >= 2020 and tw_ts.year >= 2024:
+                continue
             valid.append(t)
     return valid
 
@@ -302,7 +310,7 @@ def run_window(tw_start, tw_end, label, train_start, train_end):
     print(f"{'='*55}")
 
     # IPO过滤
-    valid_pool = get_valid_tickers(tw_start, min_weeks=130)
+    valid_pool = get_valid_tickers(tw_start)  # 默认200周≈4年
     print(f"  有效股票(IPO>={tw_start[:4]}年前): {len(valid_pool)} 只")
 
     # 评估所有策略
